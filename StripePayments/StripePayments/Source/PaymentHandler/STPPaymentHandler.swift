@@ -1606,6 +1606,7 @@ public class STPPaymentHandler: NSObject {
         _handleRedirect(to: url, fallbackURL: url, return: returnURL, useWebAuthSession: useWebAuthSession)
     }
 
+    @available(iOSApplicationExtension, unavailable)
     @_spi(STP) public func _handleRedirectToExternalBrowser(to url: URL, withReturn returnURL: URL?) {
         if let _redirectShim {
             _redirectShim(url, returnURL, false)
@@ -1655,6 +1656,7 @@ public class STPPaymentHandler: NSObject {
     ///     - returnURL: The URL to be registered with the `STPURLCallbackHandler`.
     ///     - useWebAuthSession: Use ASWebAuthenticationSession instead of SFSafariViewController.
     ///     - completion: A completion block invoked after the URL redirection is handled. The SFSafariViewController used is provided as an argument, if it was used for the redirect.
+    @available(iOSApplicationExtension, unavailable)
     func _handleRedirect(to nativeURL: URL?, fallbackURL: URL?, return returnURL: URL?, useWebAuthSession: Bool, completion: ((SFSafariViewController?) -> Void)? = nil) {
         if let _redirectShim, let url = nativeURL ?? fallbackURL {
             _redirectShim(url, returnURL, true)

@@ -109,6 +109,7 @@ class STPSourcePoller: NSObject {
         )
     }
 
+    @available(iOSApplicationExtension, unavailable)
     @objc func _poll() {
         timer = nil
         let application = UIApplication.shared
