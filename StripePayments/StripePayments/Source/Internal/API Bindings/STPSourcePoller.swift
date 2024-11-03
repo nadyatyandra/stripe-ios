@@ -109,7 +109,7 @@ class STPSourcePoller: NSObject {
         )
     }
 
-    @available(iOSApplicationExtension, unavailable)
+    #if !targetEnvironment(appExtension)
     @objc func _poll() {
         timer = nil
         let application = UIApplication.shared
@@ -118,6 +118,7 @@ class STPSourcePoller: NSObject {
             application.endBackgroundTask(bgTaskID)
             bgTaskID = .invalid
         })
+        
         apiClient?.retrieveSource(
             withId: sourceID,
             clientSecret: clientSecret,
@@ -129,6 +130,19 @@ class STPSourcePoller: NSObject {
             }
         )
     }
+    #else
+    @objc func _poll() {
+        timer = nil
+        apiClient?.retrieveSource(
+            withId: sourceID,
+            clientSecret: clientSecret,
+            responseCompletion: { source, response, error in
+                self._continue(with: source, response: response, error: error as NSError?)
+                self.requestCount += 1
+            }
+        )
+    }
+    #endif
 
     func _continue(
         with source: STPSource?,
