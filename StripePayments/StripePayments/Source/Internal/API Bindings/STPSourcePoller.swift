@@ -109,7 +109,31 @@ class STPSourcePoller: NSObject {
         )
     }
 
-    #if !targetEnvironment(appExtension)
+    // #if !targetEnvironment(appExtension)
+    // @objc func _poll() {
+    //     timer = nil
+    //     let application = UIApplication.shared
+    //     var bgTaskID: UIBackgroundTaskIdentifier = .invalid
+    //     bgTaskID = application.beginBackgroundTask(expirationHandler: {
+    //         application.endBackgroundTask(bgTaskID)
+    //         bgTaskID = .invalid
+    //     })
+        
+    //     apiClient?.retrieveSource(
+    //         withId: sourceID,
+    //         clientSecret: clientSecret,
+    //         responseCompletion: { source, response, error in
+    //             self._continue(with: source, response: response, error: error as NSError?)
+    //             self.requestCount += 1
+    //             application.endBackgroundTask(bgTaskID)
+    //             bgTaskID = .invalid
+    //         }
+    //     )
+    // }
+    // #else
+    // StripeSourcePollerViewController()
+    // #endif
+
     @objc func _poll() {
         timer = nil
         let application = UIApplication.shared
@@ -118,7 +142,6 @@ class STPSourcePoller: NSObject {
             application.endBackgroundTask(bgTaskID)
             bgTaskID = .invalid
         })
-        
         apiClient?.retrieveSource(
             withId: sourceID,
             clientSecret: clientSecret,
@@ -130,9 +153,6 @@ class STPSourcePoller: NSObject {
             }
         )
     }
-    #else
-    StripeSourcePollerViewController()
-    #endif
 
     func _continue(
         with source: STPSource?,
@@ -229,102 +249,102 @@ class STPSourcePoller: NSObject {
     }
 }
 
-private let DefaultPollInterval: TimeInterval = 1.5
-private let MaxPollInterval: TimeInterval = 24
-// Stop polling after 5 minutes
-private let MaxTimeout: TimeInterval = 60 * 5
-// Stop polling after 5 consecutive non-200 responses
-private let MaxRetries: Int = 5
+// private let DefaultPollInterval: TimeInterval = 1.5
+// private let MaxPollInterval: TimeInterval = 24
+// // Stop polling after 5 minutes
+// private let MaxTimeout: TimeInterval = 60 * 5
+// // Stop polling after 5 consecutive non-200 responses
+// private let MaxRetries: Int = 5
 
-class StripeSourcePollerViewController: UIViewController {
-    private var sourceID: String
-    private var clientSecret: String
-    private var apiClient: STPAPIClient?
-    private var requestCount = 0
-    private var timer: Timer?
+// class StripeSourcePollerViewController: UIViewController {
+//     private var sourceID: String
+//     private var clientSecret: String
+//     private var apiClient: STPAPIClient?
+//     private var requestCount = 0
+//     private var timer: Timer?
 
-    init(sourceID: String, clientSecret: String, apiClient: STPAPIClient) {
-        self.sourceID = sourceID
-        self.clientSecret = clientSecret
-        self.apiClient = apiClient
-        super.init(nibName: nil, bundle: nil)
-    }
+//     init(sourceID: String, clientSecret: String, apiClient: STPAPIClient) {
+//         self.sourceID = sourceID
+//         self.clientSecret = clientSecret
+//         self.apiClient = apiClient
+//         super.init(nibName: nil, bundle: nil)
+//     }
 
-    required init?(coder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
-    }
+//     required init?(coder: NSCoder) {
+//         fatalError("init(coder:) has not been implemented")
+//     }
 
-    override func viewDidLoad() {
-        super.viewDidLoad()
-        _poll()
-    }
+//     override func viewDidLoad() {
+//         super.viewDidLoad()
+//         _poll()
+//     }
 
-    @objc func _poll() {
-        timer = nil
-        let application = UIApplication.shared
-        var bgTaskID: UIBackgroundTaskIdentifier = .invalid
-        bgTaskID = application.beginBackgroundTask(expirationHandler: {
-            application.endBackgroundTask(bgTaskID)
-            bgTaskID = .invalid
-        })
-        apiClient?.retrieveSource(
-            withId: sourceID,
-            clientSecret: clientSecret,
-            responseCompletion: { source, response, error in
-                self._continue(with: source, response: response, error: error as NSError?)
-                self.requestCount += 1
-                application.endBackgroundTask(bgTaskID)
-                bgTaskID = .invalid
-            }
-        )
-    }
+//     @objc func _poll() {
+//         timer = nil
+//         let application = UIApplication.shared
+//         var bgTaskID: UIBackgroundTaskIdentifier = .invalid
+//         bgTaskID = application.beginBackgroundTask(expirationHandler: {
+//             application.endBackgroundTask(bgTaskID)
+//             bgTaskID = .invalid
+//         })
+//         apiClient?.retrieveSource(
+//             withId: sourceID,
+//             clientSecret: clientSecret,
+//             responseCompletion: { source, response, error in
+//                 self._continue(with: source, response: response, error: error as NSError?)
+//                 self.requestCount += 1
+//                 application.endBackgroundTask(bgTaskID)
+//                 bgTaskID = .invalid
+//             }
+//         )
+//     }
 
-    func _continue(with source: STPSource?, response: URLResponse?, error: NSError?) {
-        if let error = error {
-            // Handle the error
-            print("Error retrieving source: \(error.localizedDescription)")
-            // You can also dismiss the view controller or perform other error handling logic here
-            return
-        }
+//     func _continue(with source: STPSource?, response: URLResponse?, error: NSError?) {
+//         if let error = error {
+//             // Handle the error
+//             print("Error retrieving source: \(error.localizedDescription)")
+//             // You can also dismiss the view controller or perform other error handling logic here
+//             return
+//         }
 
-        guard let source = source else {
-            // Handle the case where the source is nil
-            print("No source retrieved")
-            return
-        }
+//         guard let source = source else {
+//             // Handle the case where the source is nil
+//             print("No source retrieved")
+//             return
+//         }
 
-        switch source.status {
-        case .pending:
-            // The source is still pending, so schedule the next poll
-            schedulePoll()
-        case .chargeable:
-            // The source is now chargeable, so you can proceed with the payment
-            handleChargeableSource(source)
-        case .failed, .canceled, .consumed:
-            // The source is in a final state, so you can stop polling
-            handleFinalSourceState(source)
-        default:
-            // Handle any other source states as needed
-            print("Source status: \(source.status.rawValue)")
-        }
-    }
+//         switch source.status {
+//         case .pending:
+//             // The source is still pending, so schedule the next poll
+//             schedulePoll()
+//         case .chargeable:
+//             // The source is now chargeable, so you can proceed with the payment
+//             handleChargeableSource(source)
+//         case .failed, .canceled, .consumed:
+//             // The source is in a final state, so you can stop polling
+//             handleFinalSourceState(source)
+//         default:
+//             // Handle any other source states as needed
+//             print("Source status: \(source.status.rawValue)")
+//         }
+//     }
 
-    private func schedulePoll() {
-        // Schedule the next poll after a short delay (e.g., 5 seconds)
-        timer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: false) { [weak self] _ in
-            self?._poll()
-        }
-    }
+//     private func schedulePoll() {
+//         // Schedule the next poll after a short delay (e.g., 5 seconds)
+//         timer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: false) { [weak self] _ in
+//             self?._poll()
+//         }
+//     }
 
-    private func handleChargeableSource(_ source: STPSource) {
-        // The source is now chargeable, so you can proceed with the payment
-        print("Source is chargeable: \(source.clientSecret ?? "")")
-        // Implement your payment logic here
-    }
+//     private func handleChargeableSource(_ source: STPSource) {
+//         // The source is now chargeable, so you can proceed with the payment
+//         print("Source is chargeable: \(source.clientSecret ?? "")")
+//         // Implement your payment logic here
+//     }
 
-    private func handleFinalSourceState(_ source: STPSource) {
-        // The source is in a final state (failed, canceled, or consumed), so you can stop polling
-        print("Source is in a final state: \(source.status.rawValue)")
-        // Implement any necessary cleanup or handling of the final state here
-    }
-}
+//     private func handleFinalSourceState(_ source: STPSource) {
+//         // The source is in a final state (failed, canceled, or consumed), so you can stop polling
+//         print("Source is in a final state: \(source.status.rawValue)")
+//         // Implement any necessary cleanup or handling of the final state here
+//     }
+// }
