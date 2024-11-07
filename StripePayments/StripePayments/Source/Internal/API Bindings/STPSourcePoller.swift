@@ -249,12 +249,12 @@ class STPSourcePoller: NSObject {
     }
 }
 
-// private let DefaultPollInterval: TimeInterval = 1.5
-// private let MaxPollInterval: TimeInterval = 24
-// // Stop polling after 5 minutes
-// private let MaxTimeout: TimeInterval = 60 * 5
-// // Stop polling after 5 consecutive non-200 responses
-// private let MaxRetries: Int = 5
+private let DefaultPollInterval: TimeInterval = 1.5
+private let MaxPollInterval: TimeInterval = 24
+// Stop polling after 5 minutes
+private let MaxTimeout: TimeInterval = 60 * 5
+// Stop polling after 5 consecutive non-200 responses
+private let MaxRetries: Int = 5
 
 // class StripeSourcePollerViewController: UIViewController {
 //     private var sourceID: String
