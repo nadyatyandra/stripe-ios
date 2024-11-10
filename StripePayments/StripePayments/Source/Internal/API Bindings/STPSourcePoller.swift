@@ -134,6 +134,7 @@ class STPSourcePoller: NSObject {
     // StripeSourcePollerViewController()
     // #endif
 
+    @available(iOSApplicationExtension, unavailable)
     @objc func _poll() {
         timer = nil
         let application = UIApplication.shared
