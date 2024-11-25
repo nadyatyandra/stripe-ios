@@ -193,6 +193,8 @@ extension PaymentSheet {
         // MARK: Internal
         internal var linkPaymentMethodsOnly: Bool = false
 
+        @_spi(STP) public var forceNativeLinkEnabled: Bool = false
+
         /// This is an experimental feature that may be removed at any time.
         /// If true (the default), the customer can delete all saved payment methods.
         /// If false, the customer can't delete if they only have one saved payment method remaining.
@@ -208,6 +210,11 @@ extension PaymentSheet {
         /// Note: This is only a client-side solution.
         /// Note: Card brand filtering is not currently supported by Link.
         @_spi(CardBrandFilteringBeta) public var cardBrandAcceptance: PaymentSheet.CardBrandAcceptance = .all
+
+        /// This is an experimental feature that may be removed at any time.
+        /// If true, when editing, cards and us bank accounts will have the edit icon and users cannot remove them from the list screen.
+        /// If false (default), only card brand choice eligible cards can be edited and users can remove payment methods from the list screen.
+        @_spi(AlternateUpdatePaymentMethodNavigation) public var alternateUpdatePaymentMethodNavigation = false
     }
 
     /// Defines the layout orientations available for displaying payment methods in PaymentSheet.

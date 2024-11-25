@@ -19,7 +19,8 @@ class CustomerSheetUITest: XCTestCase {
 
         app = XCUIApplication()
         app.launchEnvironment = ["UITesting": "true",
-                                 "USE_PRODUCTION_FINANCIAL_CONNECTIONS_SDK": "true",
+                                 "FinancialConnectionsSDKAvailable": "true",
+                                 "FinancialConnectionsStubbedResult": "false",
         ]
         app.launch()
     }
@@ -263,11 +264,7 @@ class CustomerSheetUITest: XCTestCase {
         // "Success" institution is automatically selected because its the first
         app.buttons["connect_accounts_button"].waitForExistenceAndTap(timeout: timeout)
 
-        let notNowButton = app.buttons["Not now"]
-        if notNowButton.waitForExistence(timeout: timeout) {
-            app.typeText(XCUIKeyboardKey.return.rawValue) // dismiss keyboard
-            notNowButton.tap()
-        }
+        skipLinkSignup(app)
 
         XCTAssertTrue(app.staticTexts["Success"].waitForExistence(timeout: timeout))
         app.buttons.matching(identifier: "Done").allElementsBoundByIndex.last?.tap()
@@ -395,14 +392,14 @@ class CustomerSheetUITest: XCTestCase {
         XCTAssertTrue(app.pickerWheels.firstMatch.waitForExistence(timeout: timeout))
         app.pickerWheels.firstMatch.swipeUp()
         app.toolbars.buttons["Done"].tap()
-        app.buttons["Update"].waitForExistenceAndTap(timeout: timeout)
+        app.buttons["Save"].waitForExistenceAndTap(timeout: timeout)
 
         // We should have updated to Visa
         XCTAssertTrue(app.images["carousel_card_visa"].waitForExistence(timeout: timeout))
 
         // Remove this card
         XCTAssertTrue(app.buttons["CircularButton.Edit"].waitForExistenceAndTap(timeout: timeout))
-        XCTAssertTrue(app.buttons["Remove card"].waitForExistenceAndTap(timeout: timeout))
+        XCTAssertTrue(app.buttons["Remove"].waitForExistenceAndTap(timeout: timeout))
         let confirmRemoval = app.alerts.buttons["Remove"]
         XCTAssertTrue(confirmRemoval.waitForExistence(timeout: timeout))
         confirmRemoval.tap()
@@ -476,6 +473,36 @@ class CustomerSheetUITest: XCTestCase {
         XCTAssertTrue(successText.waitForExistence(timeout: timeout))
     }
 
+    func testCardBrandChoiceUpdateAndRemove() {
+        var settings = CustomerSheetTestPlaygroundSettings.defaultValues()
+        settings.alternateUpdatePaymentMethodNavigation = .on
+        settings.merchantCountryCode = .FR
+        settings.customerMode = .returning
+
+        loadPlayground(app, settings)
+
+        app.buttons["None"].waitForExistenceAndTap()
+        app.buttons["Edit"].waitForExistenceAndTap()
+
+        // circularEditButton shows up in the view hierarchy, but it's not actually on the screen or tappable so we scroll a little
+        let startCoordinate = app.collectionViews.firstMatch.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.99))
+        startCoordinate.press(forDuration: 0.1, thenDragTo: app.collectionViews.firstMatch.coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: 0.99)))
+        XCTAssertTrue(app.buttons.matching(identifier: "CircularButton.Edit").element(boundBy: 1).waitForExistenceAndTap())
+        XCTAssertTrue(app.otherElements.matching(identifier: "Card Brand Dropdown").firstMatch.waitForExistenceAndTap())
+        app.pickerWheels.firstMatch.selectNextOption()
+        app.toolbars.buttons["Done"].tap()
+        XCTAssertTrue(app.textFields["Visa"].waitForExistence(timeout: 3))
+        app.buttons["Save"].waitForExistenceAndTap()
+        XCTAssertTrue(app.buttons["Done"].waitForExistence(timeout: 3))
+        XCTAssertEqual(app.images.matching(identifier: "carousel_card_visa").count, 2)
+
+        app.buttons.matching(identifier: "CircularButton.Edit").element(boundBy: 2).waitForExistenceAndTap()
+        app.buttons["Remove"].waitForExistenceAndTap()
+        app.alerts.buttons["Remove"].waitForExistenceAndTap()
+        XCTAssertTrue(app.buttons["Done"].waitForExistence(timeout: 3))
+        XCTAssertEqual(app.images.matching(identifier: "carousel_card_visa").count, 1)
+        app.buttons["Done"].waitForExistenceAndTap()
+    }
     // MARK: - allowsRemovalOfLastSavedPaymentMethod
     func testRemoveLastSavedPaymentMethod() throws {
         var settings = CustomerSheetTestPlaygroundSettings.defaultValues()
@@ -535,10 +562,10 @@ class CustomerSheetUITest: XCTestCase {
 
         // Should be able to edit CBC enabled PM even though it's the only one
         XCTAssertTrue(app.buttons["CircularButton.Edit"].waitForExistenceAndTap(timeout: timeout))
-        XCTAssertTrue(app.buttons["Update"].waitForExistence(timeout: timeout))
+        XCTAssertTrue(app.buttons["Save"].waitForExistence(timeout: timeout))
 
         // ...but should not be able to remove it.
-        XCTAssertFalse(app.buttons["Remove card"].exists)
+        XCTAssertFalse(app.buttons["Remove"].exists)
     }
     // MARK: - PaymentMethodRemove w/ CBC
     func testCSPaymentMethodRemoveTwoCards() throws {
@@ -577,7 +604,7 @@ class CustomerSheetUITest: XCTestCase {
         // Assert there are no remove buttons on each tile and the update screen
         XCTAssertNil(scroll(collectionView: app.collectionViews.firstMatch, toFindButtonWithId: "CircularButton.Remove"))
         XCTAssertTrue(app.buttons["CircularButton.Edit"].waitForExistenceAndTap(timeout: timeout))
-        XCTAssertFalse(app.buttons["Remove card"].exists)
+        XCTAssertFalse(app.buttons["Remove"].exists)
 
         // Dismiss Sheet
         app.buttons["Back"].waitForExistenceAndTap(timeout: timeout)
@@ -612,7 +639,7 @@ class CustomerSheetUITest: XCTestCase {
         // Assert there are no remove buttons on each tile and the update screen
         XCTAssertNil(scroll(collectionView: app.collectionViews.firstMatch, toFindButtonWithId: "CircularButton.Remove"))
         XCTAssertTrue(app.buttons["CircularButton.Edit"].waitForExistenceAndTap(timeout: timeout))
-        XCTAssertFalse(app.buttons["Remove card"].exists)
+        XCTAssertFalse(app.buttons["Remove"].exists)
 
         // Dismiss Sheet
         app.buttons["Back"].waitForExistenceAndTap(timeout: timeout)

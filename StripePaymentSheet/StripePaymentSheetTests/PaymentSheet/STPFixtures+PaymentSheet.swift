@@ -159,6 +159,10 @@ extension STPPaymentMethod {
             "card": [
                 "last4": "4242",
                 "brand": "visa",
+                "fingerprint": "B8XXs2y2JsVBtB9f",
+                "networks": ["available": ["visa"]],
+                "exp_month": "01",
+                "exp_year": Calendar.current.component(.year, from: Date()) + 1
             ],
         ])!
     }
@@ -182,6 +186,8 @@ extension STPPaymentMethod {
                 "last4": "4242",
                 "brand": brand,
                 "networks": ["available": networks],
+                "exp_month": "01",
+                "exp_year": Calendar.current.component(.year, from: Date()) + 1
             ],
         ]
         if let displayBrand {
@@ -208,6 +214,10 @@ extension STPPaymentMethod {
                 ] as [String: Any],
                 "routing_number": "110000000",
             ] as [String: Any],
+            "billing_details": [
+                "name": "Sam Stripe",
+                "email": "sam@stripe.com",
+            ] as [String: Any],
         ])!
     }
 
@@ -218,6 +228,10 @@ extension STPPaymentMethod {
             "sepa_debit": [
                 "last4": "1234",
             ],
+            "billing_details": [
+                "name": "Sam Stripe",
+                "email": "sam@stripe.com",
+            ] as [String: Any],
         ])!
     }
 }

@@ -15,22 +15,26 @@ extension RowButton {
 
         enum AccessoryType: Equatable {
             case edit
+            case viewMoreChevron
             case viewMore
+            case update
 
             var text: String? {
                 switch self {
                 case .edit:
                     return .Localized.edit
-                case .viewMore:
+                case .viewMoreChevron, .viewMore:
                     return .Localized.view_more
+                case .update:
+                    return nil
                 }
             }
 
             var accessoryImage: UIImage? {
                 switch self {
-                case .edit:
+                case .edit, .viewMore:
                     return nil
-                case .viewMore:
+                case .viewMoreChevron, .update:
                     return Image.icon_chevron_right.makeImage(template: true).withAlignmentRectInsets(UIEdgeInsets(top: -2, left: 0, bottom: 0, right: 0))
                 }
             }
@@ -39,13 +43,19 @@ extension RowButton {
         private var label: UILabel {
             let label = UILabel()
             label.text = accessoryType.text
-            label.font = appearance.scaledFont(for: appearance.font.base.medium, style: .footnote, maximumPointSize: 20)
+            switch accessoryType {
+            case .edit, .viewMoreChevron, .update:
+                label.font = appearance.scaledFont(for: appearance.font.base.medium, style: .footnote, maximumPointSize: 20)
+            case .viewMore:
+                label.font = appearance.scaledFont(for: appearance.font.base.medium, size: 14, maximumPointSize: 20)
+            }
             if #available(iOS 15.0, *) {
                 label.minimumContentSizeCategory = .large
             }
             label.textColor = appearance.colors.primary // TODO(porter) use secondary action color
             label.adjustsFontSizeToFitWidth = true
             label.adjustsFontForContentSizeCategory = true
+            label.minimumScaleFactor = 0.9
             label.isAccessibilityElement = false
             return label
         }
@@ -53,7 +63,12 @@ extension RowButton {
         private var imageView: UIImageView? {
             guard let image = accessoryType.accessoryImage else { return nil }
             let imageView = UIImageView(image: image)
-            imageView.tintColor = appearance.colors.primary // TODO(porter) use secondary action color
+            if accessoryType == .update {
+                imageView.tintColor = appearance.colors.icon
+            }
+            else {
+                imageView.tintColor = appearance.colors.primary // TODO(porter) use secondary action color
+            }
             imageView.contentMode = .scaleAspectFit
             imageView.isAccessibilityElement = false
             return imageView
@@ -79,6 +94,9 @@ extension RowButton {
 
             accessibilityLabel = accessoryType.text
             accessibilityIdentifier = accessoryType.text
+            if accessoryType == .update {
+                accessibilityIdentifier = "chevron"
+            }
             accessibilityTraits = [.button]
             isAccessibilityElement = true
 
@@ -141,17 +159,19 @@ extension RowButton.RightAccessoryButton {
     ///   - isCBCEligible: True if the merchant is eligible for card brand choice, false otherwise
     ///   - allowsRemovalOfLastSavedPaymentMethod: True if we can remove the last saved payment method, false otherwise
     ///   - allowsPaymentMethodRemoval: True if removing payment methods is enabled, false otherwise
+    ///   - isFlatCheckmarkStyle: True if embedded and style of `flatWithCheckmark`
     /// - Returns: 'AccessoryType.viewMore' if more than one payment method is saved, 'AccessoryType.edit' if only one payment method exists and it can either be updated or removed, and 'nil' otherwise.
     static func getAccessoryButtonType(savedPaymentMethodsCount: Int,
                                        isFirstCardCoBranded: Bool,
                                        isCBCEligible: Bool,
                                        allowsRemovalOfLastSavedPaymentMethod: Bool,
-                                       allowsPaymentMethodRemoval: Bool) -> AccessoryType? {
+                                       allowsPaymentMethodRemoval: Bool,
+                                       isFlatCheckmarkStyle: Bool = false) -> AccessoryType? {
         guard savedPaymentMethodsCount > 0 else { return nil }
 
         // If we have more than 1 saved payment method always show the "View more" button
         if savedPaymentMethodsCount > 1 {
-            return .viewMore
+            return isFlatCheckmarkStyle ? .viewMore : .viewMoreChevron
         }
 
         // We only have 1 payment method... show the edit icon if the card brand can be updated or if it can be removed

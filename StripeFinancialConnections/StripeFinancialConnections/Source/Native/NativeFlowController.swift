@@ -510,15 +510,15 @@ extension NativeFlowController {
         var bankAccountDetails: BankAccountDetails?
         let elementsSessionContext = dataManager.elementsSessionContext
         let linkMode = elementsSessionContext?.linkMode
-        let email = elementsSessionContext?.prefillDetails?.email ?? dataManager.consumerSession?.emailAddress
-        let phone = elementsSessionContext?.prefillDetails?.formattedPhoneNumber
+        let email = elementsSessionContext?.billingDetails?.email ?? dataManager.consumerSession?.emailAddress
+        let phone = elementsSessionContext?.billingDetails?.phone
         dataManager.createPaymentDetails(
             consumerSessionClientSecret: consumerSession.clientSecret,
             bankAccountId: bankAccountId,
             billingAddress: elementsSessionContext?.billingAddress,
             billingEmail: email
         )
-        .chained { [weak self] paymentDetails -> Future<PaymentMethodIDProvider> in
+        .chained { [weak self] paymentDetails -> Future<LinkBankPaymentMethod> in
             guard let self else {
                 return Promise(error: FinancialConnectionsSheetError.unknown(debugDescription: "data source deallocated"))
             }
@@ -534,21 +534,20 @@ extension NativeFlowController {
                     billingEmail: email,
                     billingPhone: phone
                 )
-                .transformed { $0 as PaymentMethodIDProvider }
+                .transformed { $0.paymentMethod }
             } else {
                 return self.dataManager.apiClient.paymentMethods(
                     consumerSessionClientSecret: consumerSession.clientSecret,
                     paymentDetailsId: paymentDetails.redactedPaymentDetails.id,
                     billingDetails: elementsSessionContext?.billingDetails
                 )
-                .transformed { $0 as PaymentMethodIDProvider }
             }
         }
         .observe { result in
             switch result {
             case .success(let paymentMethod):
                 let linkedBank = InstantDebitsLinkedBank(
-                    paymentMethodId: paymentMethod.id,
+                    paymentMethod: paymentMethod,
                     bankName: bankAccountDetails?.bankName,
                     last4: bankAccountDetails?.last4,
                     linkMode: linkMode
@@ -1356,7 +1355,8 @@ private func CreatePaneViewController(
             returnURL: dataManager.returnURL,
             apiClient: dataManager.apiClient,
             clientSecret: dataManager.clientSecret,
-            analyticsClient: dataManager.analyticsClient
+            analyticsClient: dataManager.analyticsClient,
+            elementsSessionContext: dataManager.elementsSessionContext
         )
         let networkingLinkSignupViewController = NetworkingLinkSignupViewController(
             dataSource: networkingLinkSignupDataSource

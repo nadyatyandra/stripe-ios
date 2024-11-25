@@ -237,25 +237,26 @@ public extension PaymentSheet {
     /// Describes the appearance of the Embedded Mobile Payment Element
     @_spi(EmbeddedPaymentElementPrivateBeta) struct EmbeddedPaymentElement: Equatable {
 
-        /// The display style options for the Embedded Mobile Payment Element
-        public enum Style: CaseIterable {
-            /// A flat style with radio buttons
-            case flatWithRadio
-            /// A floating button style
-            case floatingButton
-        }
-
         /// Creates a `PaymentSheet.Appearance.EmbeddedPaymentElement` with default values
         public init() {}
 
         /// Describes the appearance of the row in the Embedded Mobile Payment Element
         public var row: Row = Row()
 
-        /// The display style of the Embedded Mobile Payment Element
-        public var style: Style = .flatWithRadio
-
         /// Describes the appearance of the row in the Embedded Mobile Payment Element
         public struct Row: Equatable {
+            /// The display styles of rows
+            public enum Style: CaseIterable {
+                /// A flat style with radio buttons
+                case flatWithRadio
+                /// A floating button style
+                case floatingButton
+                case flatWithCheckmark
+            }
+            
+            /// The display style of the row
+            public var style: Style = .flatWithRadio
+            
             /// Additional vertical insets applied to a payment method row
             /// - Note: Increasing this value increases the height of each row
             public var additionalInsets: CGFloat = 4.0
@@ -287,6 +288,9 @@ public extension PaymentSheet {
 
                 /// Appearance settings for the radio button
                 public var radio: Radio = Radio()
+                
+                /// Appearance settings for the checkmark
+                public var checkmark: Checkmark = Checkmark()
 
                 /// Describes the appearance of the radio button
                 public struct Radio: Equatable {
@@ -297,6 +301,13 @@ public extension PaymentSheet {
                     /// The color of the radio button when unselected
                     /// - Note: If `nil`, defaults to `appearance.colors.componentBorder`
                     public var unselectedColor: UIColor?
+                }
+                
+                /// Describes the appearance of the checkmark
+                public struct Checkmark: Equatable {
+                    /// The color of the checkmark button when selected
+                    /// - Note: If `nil`, defaults to `appearance.color.primaryColor`
+                    public var color: UIColor?
                 }
             }
 

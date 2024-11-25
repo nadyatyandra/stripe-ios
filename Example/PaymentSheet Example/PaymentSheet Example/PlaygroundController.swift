@@ -14,7 +14,7 @@ import Contacts
 import PassKit
 @_spi(STP) import StripeCore
 @_spi(STP) import StripePayments
-@_spi(CustomerSessionBetaAccess) @_spi(STP) @_spi(PaymentSheetSkipConfirmation) @_spi(ExperimentalAllowsRemovalOfLastSavedPaymentMethodAPI) @_spi(EmbeddedPaymentElementPrivateBeta) @_spi(CardBrandFilteringBeta) import StripePaymentSheet
+@_spi(CustomerSessionBetaAccess) @_spi(STP) @_spi(PaymentSheetSkipConfirmation) @_spi(ExperimentalAllowsRemovalOfLastSavedPaymentMethodAPI) @_spi(EmbeddedPaymentElementPrivateBeta) @_spi(CardBrandFilteringBeta) @_spi(AlternateUpdatePaymentMethodNavigation) import StripePaymentSheet
 import SwiftUI
 import UIKit
 
@@ -116,6 +116,7 @@ class PlaygroundController: ObservableObject {
         configuration.applePay = applePayConfiguration
         configuration.customer = customerConfiguration
         configuration.appearance = appearance
+        configuration.forceNativeLinkEnabled = settings.useNativeLink == .on
         if settings.userOverrideCountry != .off {
             configuration.userOverrideCountry = settings.userOverrideCountry.rawValue
         }
@@ -183,6 +184,7 @@ class PlaygroundController: ObservableObject {
         case .allowVisa:
             configuration.cardBrandAcceptance = .allowed(brands: [.visa])
         }
+        configuration.alternateUpdatePaymentMethodNavigation = settings.alternateUpdatePaymentMethodNavigation == .on
         return configuration
     }
 
@@ -191,6 +193,7 @@ class PlaygroundController: ObservableObject {
             switch settings.formSheetAction {
             case .confirm:
                 return .confirm { [weak self] result in
+                    self?.embeddedPlaygroundViewController?.dismiss(animated: true)
                     self?.lastPaymentResult = result
                 }
             case .continue:
@@ -269,12 +272,12 @@ class PlaygroundController: ObservableObject {
         case .allowVisa:
             configuration.cardBrandAcceptance = .allowed(brands: [.visa])
         }
-
+        configuration.alternateUpdatePaymentMethodNavigation = settings.alternateUpdatePaymentMethodNavigation == .on
         return configuration
     }
 
     var addressConfiguration: AddressViewController.Configuration {
-        var configuration = AddressViewController.Configuration(additionalFields: .init(phone: .optional), appearance: configuration.appearance)
+        var configuration = AddressViewController.Configuration(additionalFields: .init(phone: .optional), appearance: appearance)
         if case .onWithDefaults = settings.shippingInfo {
             configuration.defaultValues = .init(
                 address: .init(
@@ -337,7 +340,7 @@ class PlaygroundController: ObservableObject {
         case .new:
             return customerId ?? "new"
         case .returning:
-            return "returning"
+            return customerId ?? "returning"
         }
     }
 
@@ -367,7 +370,7 @@ class PlaygroundController: ObservableObject {
             let exampleError = NSError(domain: "", code: 0, userInfo: [NSLocalizedDescriptionKey: "Something went wrong!"])
             completion(.failed(error: exampleError))
         })
-        if self.settings.uiStyle == .paymentSheet {
+        if self.settings.uiStyle == .paymentSheet || self.settings.uiStyle == .embedded {
             self.rootViewController.presentedViewController?.present(alert, animated: true)
         } else {
             self.rootViewController.present(alert, animated: true)
@@ -438,6 +441,10 @@ class PlaygroundController: ObservableObject {
             } else {
                 self.ambiguousViewTimer?.invalidate()
             }
+            
+            // Hack to enable incentives in Instant Debits
+            let enableInstantDebitsIncentives = newValue.instantDebitsIncentives == .on
+            UserDefaults.standard.set(enableInstantDebitsIncentives, forKey: "FINANCIAL_CONNECTIONS_INSTANT_DEBITS_INCENTIVES")
         }.store(in: &subscribers)
 
         // Listen for analytics
@@ -493,7 +500,7 @@ class PlaygroundController: ObservableObject {
             let vc = UIHostingController(rootView: AppearancePlaygroundView(appearance: appearance, doneAction: { updatedAppearance in
                 self.appearance = updatedAppearance
                 self.rootViewController.dismiss(animated: true, completion: nil)
-                self.load()
+                self.load(reinitializeControllers: true)
             }))
 
             rootViewController.present(vc, animated: true, completion: nil)
@@ -948,18 +955,15 @@ extension PlaygroundController {
         embeddedPlaygroundViewController = EmbeddedPlaygroundViewController(
             configuration: embeddedConfiguration,
             intentConfig: intentConfig,
-            appearance: appearance
+            playgroundController: self
         )
     }
 
-    func presentEmbedded(settingsView: some View) {
+    func presentEmbedded<SettingsView: View>(settingsView: @escaping () -> SettingsView) {
         guard let embeddedPlaygroundViewController else { return }
 
         // Include settings view
-        let hostingController = UIHostingController(rootView: settingsView)
-        embeddedPlaygroundViewController.addChild(hostingController)
-        hostingController.didMove(toParent: rootViewController)
-        embeddedPlaygroundViewController.setSettingsView(hostingController.view)
+        embeddedPlaygroundViewController.setSettingsView(settingsView)
 
         let closeButton = UIBarButtonItem(barButtonSystemItem: .close, target: self, action: #selector(dismissEmbedded))
         embeddedPlaygroundViewController.navigationItem.leftBarButtonItem = closeButton

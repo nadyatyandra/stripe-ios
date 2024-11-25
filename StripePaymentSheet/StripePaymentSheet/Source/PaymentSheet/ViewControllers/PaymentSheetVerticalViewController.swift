@@ -254,9 +254,11 @@ class PaymentSheetVerticalViewController: UIViewController, FlowControllerViewCo
 
     func updateMandate(animated: Bool = true) {
         let mandateProvider = VerticalListMandateProvider(configuration: configuration, elementsSession: elementsSession, intent: intent, analyticsHelper: analyticsHelper)
-        let newMandateText = mandateProvider.mandate(for: selectedPaymentOption?.paymentMethodType,
-                                                     savedPaymentMethod: selectedPaymentOption?.savedPaymentMethod,
-                                                     bottomNoticeAttributedString: paymentMethodFormViewController?.bottomNoticeAttributedString)
+        let newMandateText = mandateProvider.mandate(
+            for: selectedPaymentOption?.paymentMethodType,
+            savedPaymentMethod: selectedPaymentOption?.savedPaymentMethod,
+            bottomNoticeAttributedString: paymentMethodFormViewController?.bottomNoticeAttributedString
+        )
         animateHeightChange {
             self.mandateView.attributedText = newMandateText
             self.mandateView.setHiddenIfNecessary(newMandateText == nil)
@@ -566,18 +568,21 @@ class PaymentSheetVerticalViewController: UIViewController, FlowControllerViewCo
 
     @objc func presentManageScreen() {
         error = nil
-        // Special case, only 1 card remaining but is co-branded, show update view controller
+        // Special case, only 1 card remaining but is co-branded (or alternateUpdatePaymentMethodNavigation), skip showing the list and show update view controller
         if savedPaymentMethods.count == 1,
            let paymentMethod = savedPaymentMethods.first,
            paymentMethod.isCoBrandedCard,
-           elementsSession.isCardBrandChoiceEligible {
-            let updateViewController = UpdateCardViewController(paymentMethod: paymentMethod,
+           elementsSession.isCardBrandChoiceEligible || configuration.alternateUpdatePaymentMethodNavigation {
+            let updateViewModel = UpdatePaymentMethodViewModel(paymentMethod: paymentMethod,
+                                                               appearance: configuration.appearance,
+                                                               hostedSurface: .paymentSheet,
+                                                               cardBrandFilter: configuration.cardBrandFilter,
+                                                               canEdit: paymentMethod.isCoBrandedCard && elementsSession.isCardBrandChoiceEligible,
+                                                               canRemove: configuration.allowsRemovalOfLastSavedPaymentMethod && elementsSession.allowsRemovalOfPaymentMethodsForPaymentSheet())
+            let updateViewController = UpdatePaymentMethodViewController(
                                                                 removeSavedPaymentMethodMessage: configuration.removeSavedPaymentMethodMessage,
-                                                                appearance: configuration.appearance,
-                                                                hostedSurface: .paymentSheet,
-                                                                canRemoveCard: configuration.allowsRemovalOfLastSavedPaymentMethod && elementsSession.allowsRemovalOfPaymentMethodsForPaymentSheet(),
                                                                 isTestMode: configuration.apiClient.isTestmode,
-                                                                cardBrandFilter: configuration.cardBrandFilter)
+                                                                viewModel: updateViewModel)
             updateViewController.delegate = self
             bottomSheetController?.pushContentViewController(updateViewController)
             return
@@ -616,9 +621,12 @@ extension PaymentSheetVerticalViewController: BottomSheetContentViewController {
 // MARK: - VerticalSavedPaymentMethodsViewControllerDelegate
 
 extension PaymentSheetVerticalViewController: VerticalSavedPaymentMethodsViewControllerDelegate {
-    func didComplete(viewController: VerticalSavedPaymentMethodsViewController,
-                     with selectedPaymentMethod: STPPaymentMethod?,
-                     latestPaymentMethods: [STPPaymentMethod]) {
+    func didComplete(
+        viewController: VerticalSavedPaymentMethodsViewController,
+        with selectedPaymentMethod: STPPaymentMethod?,
+        latestPaymentMethods: [STPPaymentMethod],
+        didTapToDismiss: Bool
+    ) {
         // Update our list of saved payment methods to be the latest from the manage screen in case of updates/removals
         self.savedPaymentMethods = latestPaymentMethods
         var selection: VerticalPaymentMethodListSelection?
@@ -627,11 +635,12 @@ extension PaymentSheetVerticalViewController: VerticalSavedPaymentMethodsViewCon
         }
         regenerateUI(updatedListSelection: selection)
 
-        _ = viewController.bottomSheetController?.popContentViewController()
-    }
-
-    func shouldClose() {
-        didTapOrSwipeToDismiss()
+        if didTapToDismiss {
+            // Dismiss the entire sheet
+            didCancel()
+        } else {
+            _ = viewController.bottomSheetController?.popContentViewController()
+        }
     }
 }
 
@@ -666,7 +675,7 @@ extension PaymentSheetVerticalViewController: VerticalPaymentMethodListViewContr
             CustomerPaymentOption.setDefaultPaymentMethod(.stripeId(paymentMethod.stripeId), forCustomer: configuration.customer?.id)
         case let .new(paymentMethodType: paymentMethodType):
             let pmFormVC = makeFormVC(paymentMethodType: paymentMethodType)
-            if pmFormVC.form.collectsUserInput {
+            if pmFormVC.form.collectsUserInput || paymentMethodType.isBankPayment {
                 // The payment method form collects user input, display it
                 self.paymentMethodFormViewController = pmFormVC
                 paymentMethodListContentOffsetPercentage = bottomSheetController?.contentOffsetPercentage
@@ -735,6 +744,11 @@ extension PaymentSheetVerticalViewController: VerticalPaymentMethodListViewContr
     }
 
     private func shouldDisplayForm(for paymentMethodType: PaymentSheet.PaymentMethodType) -> Bool {
+        if paymentMethodType.isBankPayment {
+            // We need to show the form for bank payments (even if we don't collect user input) so that we can launch the auth flow.
+            return true
+        }
+        
         return PaymentSheetFormFactory(
             intent: intent,
             elementsSession: elementsSession,
@@ -780,9 +794,9 @@ extension PaymentSheetVerticalViewController: SheetNavigationBarDelegate {
     }
 }
 
-// MARK: UpdateCardViewControllerDelegate
-extension PaymentSheetVerticalViewController: UpdateCardViewControllerDelegate {
-    func didRemove(viewController: UpdateCardViewController, paymentMethod: STPPaymentMethod) {
+// MARK: UpdatePaymentMethodViewControllerDelegate
+extension PaymentSheetVerticalViewController: UpdatePaymentMethodViewControllerDelegate {
+    func didRemove(viewController: UpdatePaymentMethodViewController, paymentMethod: STPPaymentMethod) {
         // Detach the payment method from the customer
         savedPaymentMethodManager.detach(paymentMethod: paymentMethod)
         analyticsHelper.logSavedPaymentMethodRemoved(paymentMethod: paymentMethod)
@@ -795,7 +809,7 @@ extension PaymentSheetVerticalViewController: UpdateCardViewControllerDelegate {
         _ = viewController.bottomSheetController?.popContentViewController()
     }
 
-    func didUpdate(viewController: UpdateCardViewController, paymentMethod: STPPaymentMethod, updateParams: STPPaymentMethodUpdateParams) async throws {
+    func didUpdate(viewController: UpdatePaymentMethodViewController, paymentMethod: STPPaymentMethod, updateParams: STPPaymentMethodUpdateParams) async throws {
         // Update the payment method
         let updatedPaymentMethod = try await savedPaymentMethodManager.update(paymentMethod: paymentMethod, with: updateParams)
 
@@ -807,6 +821,10 @@ extension PaymentSheetVerticalViewController: UpdateCardViewControllerDelegate {
         // Update UI
         regenerateUI()
         _ = viewController.bottomSheetController?.popContentViewController()
+    }
+
+    func didDismiss(_: UpdatePaymentMethodViewController) {
+        // No-op
     }
 }
 

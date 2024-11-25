@@ -36,8 +36,9 @@ class PaymentSheetUITestCase: XCTestCase {
         app = XCUIApplication()
         app.launchEnvironment = [
             "UITesting": "true",
-            // This makes the Financial Connections SDK trigger the (testmode) production flow instead of a stub. See FinancialConnectionsSDKAvailability.isUnitTestOrUITest.
-            "USE_PRODUCTION_FINANCIAL_CONNECTIONS_SDK": "true",
+            // This makes the Financial Connections SDK trigger the (testmode) production flow instead of a stub. See `FinancialConnectionsSDKAvailability`.
+            "FinancialConnectionsSDKAvailable": "true",
+            "FinancialConnectionsStubbedResult": "false",
         ]
     }
 }
@@ -305,7 +306,8 @@ class PaymentSheetStandardUITests: PaymentSheetUITestCase {
         buyButton.forceTapElement()
 
         try! fillCardData(app)
-        app.buttons["Pay €9.73"].tap()
+        app.buttons["Done"].waitForExistenceAndTap(timeout: 3.0)
+        app.buttons["Pay €9.73"].waitForExistenceAndTap(timeout: 3.0)
         let successText = app.staticTexts["Payment status view"]
         XCTAssertTrue(successText.waitForExistence(timeout: 10.0))
         XCTAssertNotNil(successText.label.range(of: "Success!"))
@@ -1484,7 +1486,7 @@ class PaymentSheetCustomerSessionCBCUITests: PaymentSheetUITestCase {
         // Detect there are no remove buttons on each tile and the update screen
         XCTAssertNil(scroll(collectionView: app.collectionViews.firstMatch, toFindButtonWithId: "CircularButton.Remove")?.tap())
         XCTAssertTrue(app.buttons["CircularButton.Edit"].waitForExistenceAndTap(timeout: 5))
-        XCTAssertFalse(app.buttons["Remove card"].exists)
+        XCTAssertFalse(app.buttons["Remove"].exists)
 
         app.buttons["Back"].waitForExistenceAndTap(timeout: 5)
         app.buttons["Done"].waitForExistenceAndTap(timeout: 5)
@@ -1526,7 +1528,7 @@ class PaymentSheetCustomerSessionCBCUITests: PaymentSheetUITestCase {
         // Detect there are no remove buttons on each tile and the update screen
         XCTAssertNil(scroll(collectionView: app.collectionViews.firstMatch, toFindButtonWithId: "CircularButton.Remove")?.tap())
         XCTAssertTrue(app.buttons["CircularButton.Edit"].waitForExistenceAndTap(timeout: 5))
-        XCTAssertFalse(app.buttons["Remove card"].exists)
+        XCTAssertFalse(app.buttons["Remove"].exists)
 
         app.buttons["Back"].waitForExistenceAndTap(timeout: 5)
         app.buttons["Done"].waitForExistenceAndTap(timeout: 5)
@@ -1633,9 +1635,7 @@ class PaymentSheetCVCRecollectionUITests: PaymentSheetUITestCase {
         saveThisCardToggle.tap()
         XCTAssertTrue(saveThisCardToggle.isSelected)
 
-        let payButton = app.buttons["Pay $50.99"]
-        XCTAssert(payButton.isEnabled)
-        payButton.tap()
+        app.buttons["Pay $50.99"].waitForExistenceAndTap(timeout: 5.0)
 
         let successText = app.staticTexts["Success!"]
         XCTAssertTrue(successText.waitForExistence(timeout: 10.0))
@@ -1964,6 +1964,50 @@ class PaymentSheetLinkUITests: PaymentSheetUITestCase {
         // Disable postal code input, it is pre-filled by `defaultBillingAddress`
         try! fillCardData(app, postalEnabled: false)
         app.buttons["Pay $50.99"].tap()
+        XCTAssertTrue(app.staticTexts["Success!"].waitForExistence(timeout: 10.0))
+    }
+
+    // Tests Native Link with a returning user, 2FA prompt shows first
+    func testLinkPaymentSheet_native_enabledSPM_noSPMs_returningLinkUser() {
+        var settings = PaymentSheetTestPlaygroundSettings.defaultValues()
+        settings.customerMode = .new
+        settings.apmsEnabled = .on
+        settings.linkMode = .link_pm
+        settings.useNativeLink = .on
+        settings.defaultBillingAddress = .on // the email on the default billings details is signed up for Link
+
+        loadPlayground(app, settings)
+        app.buttons["Present PaymentSheet"].waitForExistenceAndTap()
+        let codeField = app.textViews["Code field"]
+        _ = codeField.waitForExistence(timeout: 5.0)
+        codeField.typeText("000000")
+        let pwlController = app.otherElements["Stripe.Link.PayWithLinkViewController"]
+        let payButton = pwlController.buttons["Pay $50.99"]
+        _ = payButton.waitForExistenceAndTap()
+        XCTAssertTrue(app.staticTexts["Success!"].waitForExistence(timeout: 10.0))
+    }
+
+    // Tests Native Link in Flow Controller with a returning user
+    func testLinkPaymentSheetFC_native_enabledSPM_noSPMs_returningLinkUser() {
+        var settings = PaymentSheetTestPlaygroundSettings.defaultValues()
+        settings.customerMode = .new
+        settings.apmsEnabled = .on
+        settings.linkMode = .link_pm
+        settings.uiStyle = .flowController
+        settings.useNativeLink = .on
+        settings.defaultBillingAddress = .on // the email on the default billings details is signed up for Link
+
+        loadPlayground(app, settings)
+
+        app.buttons["Payment method"].waitForExistenceAndTap()
+        app.buttons["Link"].waitForExistenceAndTap()
+        app.buttons["Confirm"].waitForExistenceAndTap()
+        let codeField = app.textViews["Code field"]
+        _ = codeField.waitForExistence(timeout: 5.0)
+        codeField.typeText("000000")
+        let pwlController = app.otherElements["Stripe.Link.PayWithLinkViewController"]
+        let payButton = pwlController.buttons["Pay $50.99"]
+        _ = payButton.waitForExistenceAndTap()
         XCTAssertTrue(app.staticTexts["Success!"].waitForExistence(timeout: 10.0))
     }
 
@@ -2379,7 +2423,7 @@ class PaymentSheetLinkUITests: PaymentSheetUITestCase {
 //        // Allow link.com to sign in
 //        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
 //        springboard.buttons["Continue"].forceTapWhenHittableInTestCase(self)
-//        
+//
 //        let emailField = app.webViews.textFields.firstMatch
 //        emailField.forceTapWhenHittableInTestCase(self)
 //        emailField.typeText("test@example.com")
@@ -2393,6 +2437,57 @@ class PaymentSheetLinkUITests: PaymentSheetUITestCase {
 //
 //        XCTAssertTrue(app.staticTexts["Success!"].waitForExistence(timeout: 10.0))
 //    }
+}
+
+class PaymentSheetDefaultSPMUITests: PaymentSheetUITestCase {
+    func testDefaultSPMHorizontalNavigation() {
+        var settings = PaymentSheetTestPlaygroundSettings.defaultValues()
+        settings.alternateUpdatePaymentMethodNavigation = .on
+        settings.merchantCountryCode = .FR
+        settings.currency = .eur
+        settings.customerMode = .returning
+        settings.layout = .horizontal
+
+        loadPlayground(app, settings)
+
+        app.buttons["Present PaymentSheet"].waitForExistenceAndTap()
+
+        app.buttons["Edit"].waitForExistenceAndTap()
+
+        XCTAssertEqual(app.buttons.matching(identifier: "CircularButton.Edit").count, 2)
+    }
+    func testDefaultSPMVerticalNavigation() {
+        var settings = PaymentSheetTestPlaygroundSettings.defaultValues()
+        settings.alternateUpdatePaymentMethodNavigation = .on
+        settings.merchantCountryCode = .FR
+        settings.currency = .eur
+        settings.customerMode = .returning
+        settings.layout = .vertical
+
+        loadPlayground(app, settings)
+
+        app.buttons["Present PaymentSheet"].waitForExistenceAndTap()
+        app.buttons["View more"].waitForExistenceAndTap()
+        app.buttons["Edit"].waitForExistenceAndTap()
+
+        XCTAssertEqual(app.buttons.matching(identifier: "chevron").count, 2)
+    }
+    func testDefaultSPMNavigationFlagOff() {
+        var settings = PaymentSheetTestPlaygroundSettings.defaultValues()
+        settings.alternateUpdatePaymentMethodNavigation = .off
+        settings.merchantCountryCode = .FR
+        settings.currency = .eur
+        settings.customerMode = .returning
+        settings.layout = .horizontal
+
+        loadPlayground(app, settings)
+
+        app.buttons["Present PaymentSheet"].waitForExistenceAndTap()
+
+        app.buttons["Edit"].waitForExistenceAndTap()
+
+        XCTAssertEqual(app.buttons.matching(identifier: "CircularButton.Edit").count, 1)
+    }
 }
 
 // MARK: Helpers
@@ -2433,11 +2528,7 @@ extension PaymentSheetUITestCase {
         // "Success" institution is automatically selected because its the first
         app.buttons["connect_accounts_button"].waitForExistenceAndTap(timeout: 10)
 
-        let notNowButton = app.buttons["Not now"]
-        if notNowButton.waitForExistence(timeout: 10.0) {
-            app.typeText(XCUIKeyboardKey.return.rawValue) // dismiss keyboard
-            notNowButton.tap()
-        }
+        skipLinkSignup(app)
 
         XCTAssertTrue(app.staticTexts["Success"].waitForExistence(timeout: 10))
         app.buttons.matching(identifier: "Done").allElementsBoundByIndex.last?.tap()
@@ -2508,40 +2599,7 @@ extension PaymentSheetUITestCase {
         XCTAssertTrue(continueButton.isEnabled)
         continueButton.tap()
 
-        // "Consent" pane
-        app.buttons["Agree and continue"].waitForExistenceAndTap(timeout: 10)
-
-        // "Sign Up" pane. Email will be pre-filled.
-        let phoneTextField = app.textFields["phone_text_field"]
-        XCTAssertTrue(phoneTextField.waitForExistence(timeout: 10.0), "Failed to find phone text field")
-
-        let countryCodeSelector = app.otherElements["phone_country_code_selector"]
-        XCTAssertTrue(countryCodeSelector.waitForExistence(timeout: 10.0), "Failed to find phone text field")
-        countryCodeSelector.tap()
-        app.pickerWheels.firstMatch.adjust(toPickerWheelValue: "🇺🇸 United States (+1)")
-        app.toolbars.buttons["Done"].tap()
-
-        phoneTextField.tap()
-        phoneTextField.typeText("4015006000")
-
-        let linkLoginCtaButton = app.buttons["link_login.primary_button"]
-        XCTAssertTrue(linkLoginCtaButton.waitForExistence(timeout: 10.0))
-        linkLoginCtaButton.tap()
-
-        // "Institution picker" pane
-        let featuredLegacyTestInstitution = app.tables.cells.staticTexts["Payment Success"]
-        XCTAssertTrue(featuredLegacyTestInstitution.waitForExistence(timeout: 60.0))
-        featuredLegacyTestInstitution.tap()
-
-        let accountPickerLinkAccountsButton = app.buttons["connect_accounts_button"]
-        XCTAssertTrue(accountPickerLinkAccountsButton.waitForExistence(timeout: 120.0), "Failed to open Account Picker pane - \(#function) waiting failed")  // wait for accounts to fetch
-        XCTAssert(accountPickerLinkAccountsButton.isEnabled, "no account selected")
-        accountPickerLinkAccountsButton.tap()
-
-        // "Success" pane
-        let successDoneButton = app.buttons["success_done_button"]
-        XCTAssertTrue(successDoneButton.waitForExistence(timeout: 120.0), "Failed to open Success pane - \(#function) waiting failed")  // wait for accounts to link
-        successDoneButton.tap()
+        Self.stepThroughNativeInstantDebitsFlow(app: app)
 
         // Back to Payment Sheet
         app.buttons[mode == .setup ? "Set up" : "Pay $50.99"].waitForExistenceAndTap(timeout: 10)
@@ -2667,5 +2725,51 @@ extension PaymentSheetUITestCase {
         app.buttons[confirmButtonText].tap()
         let successText = app.staticTexts["Success!"]
         XCTAssertTrue(successText.waitForExistence(timeout: 10.0))
+    }
+
+    static func stepThroughNativeInstantDebitsFlow(app: XCUIApplication, emailPrefilled: Bool = true) {
+        // "Consent" pane
+        app.buttons["Agree and continue"].waitForExistenceAndTap(timeout: 10)
+
+        // "Sign Up" pane
+        if !emailPrefilled {
+            app.textFields
+                .matching(NSPredicate(format: "label CONTAINS 'Email address'"))
+                .firstMatch
+                .waitForExistenceAndTap(timeout: 10)
+            let email = "linkpaymentcontrolleruitest-\(UUID().uuidString)@example.com"
+            app.typeText(email + XCUIKeyboardKey.return.rawValue)
+        }
+
+        let phoneTextField = app.textFields["phone_text_field"]
+        XCTAssertTrue(phoneTextField.waitForExistence(timeout: 10.0), "Failed to find phone text field")
+
+        let countryCodeSelector = app.otherElements["phone_country_code_selector"]
+        XCTAssertTrue(countryCodeSelector.waitForExistence(timeout: 10.0), "Failed to find phone text field")
+        countryCodeSelector.tap()
+        app.pickerWheels.firstMatch.adjust(toPickerWheelValue: "🇺🇸 United States (+1)")
+        app.toolbars.buttons["Done"].tap()
+
+        phoneTextField.tap()
+        phoneTextField.typeText("4015006000")
+
+        let linkLoginCtaButton = app.buttons["link_login.primary_button"]
+        XCTAssertTrue(linkLoginCtaButton.waitForExistence(timeout: 10.0))
+        linkLoginCtaButton.tap()
+
+        // "Institution picker" pane
+        let featuredLegacyTestInstitution = app.tables.cells.staticTexts["Payment Success"]
+        XCTAssertTrue(featuredLegacyTestInstitution.waitForExistence(timeout: 60.0))
+        featuredLegacyTestInstitution.tap()
+
+        let accountPickerLinkAccountsButton = app.buttons["connect_accounts_button"]
+        XCTAssertTrue(accountPickerLinkAccountsButton.waitForExistence(timeout: 120.0), "Failed to open Account Picker pane - \(#function) waiting failed")  // wait for accounts to fetch
+        XCTAssert(accountPickerLinkAccountsButton.isEnabled, "no account selected")
+        accountPickerLinkAccountsButton.tap()
+
+        // "Success" pane
+        let successDoneButton = app.buttons["success_done_button"]
+        XCTAssertTrue(successDoneButton.waitForExistence(timeout: 120.0), "Failed to open Success pane - \(#function) waiting failed")  // wait for accounts to link
+        successDoneButton.tap()
     }
 }

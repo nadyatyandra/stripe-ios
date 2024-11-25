@@ -7,14 +7,14 @@
 
 import Foundation
 
-@_spi(STP) public struct BillingAddress: Encodable {
-    let name: String?
-    let line1: String?
-    let line2: String?
-    let city: String?
-    let state: String?
-    let postalCode: String?
-    let countryCode: String?
+@_spi(STP) public struct BillingAddress: Codable {
+    @_spi(STP) public let name: String?
+    @_spi(STP) public let line1: String?
+    @_spi(STP) public let line2: String?
+    @_spi(STP) public let city: String?
+    @_spi(STP) public let state: String?
+    @_spi(STP) public let postalCode: String?
+    @_spi(STP) public let countryCode: String?
 
     @_spi(STP) public init(
         name: String? = nil,
@@ -32,6 +32,18 @@ import Foundation
         self.state = state
         self.postalCode = postalCode
         self.countryCode = countryCode
+    }
+
+    @_spi(STP) public init(from billingDetails: ElementsSessionContext.BillingDetails?) {
+        self.init(
+            name: billingDetails?.name,
+            line1: billingDetails?.address?.line1,
+            line2: billingDetails?.address?.line2,
+            city: billingDetails?.address?.city,
+            state: billingDetails?.address?.state,
+            postalCode: billingDetails?.address?.postalCode,
+            countryCode: billingDetails?.address?.country
+        )
     }
 
     enum CodingKeys: String, CodingKey {
